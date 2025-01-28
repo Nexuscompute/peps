@@ -1,6 +1,17 @@
-name: Lint
+name: Lint PEPs
 
 on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  FORCE_COLOR: 1
+  RUFF_FORMAT: github
 
 jobs:
   pre-commit:
@@ -8,13 +19,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out repo
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: "3.x"
 
       - name: Run pre-commit hooks
-        uses: pre-commit/action@v3.0.0
+        uses: tox-dev/action-pre-commit-uv@v1
+
+      - name: Check spelling
+        uses: tox-dev/action-pre-commit-uv@v1
+        with:
+          extra_args: --all-files --hook-stage manual codespell || true
