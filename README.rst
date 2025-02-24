@@ -10,6 +10,16 @@ about writing one, please start reading at :pep:`1`. Note that the PEP Index
 (:pep:`0`) is automatically generated based on the metadata headers in other PEPs.
 
 
+Canonical links
+===============
+
+The canonical form of PEP links are zero-padded, such as
+``https://peps.python.org/pep-0008/``.
+
+Shortcut redirects are also available.
+For example, ``https://peps.python.org/8`` redirects to the canonical link.
+
+
 Contributing to PEPs
 ====================
 
@@ -24,11 +34,11 @@ generation to fail, or result in major rendering defects relative to what you
 intend.
 
 
-Browse the ReadTheDocs preview
-------------------------------
+Browse the "Read the Docs" preview
+----------------------------------
 
 For every PR, we automatically create a preview of the rendered PEPs using
-`ReadTheDocs <https://readthedocs.org/>`_.
+`Read the Docs <https://about.readthedocs.com>`_.
 You can find it in the merge box at the bottom of the PR page:
 
 1. Click "Show all checks" to expand the checks section
@@ -48,8 +58,8 @@ In summary, run the following in a fresh, activated virtual environment:
     # Install requirements
     python -m pip install -U -r requirements.txt
 
-    # Render the PEPs
-    make render
+    # Build the PEPs
+    make html
 
     # Or, if you don't have 'make':
     python build.py

@@ -1,45 +1,56 @@
 # Builds PEP files to HTML using sphinx
 
-PYTHON=python3
-VENVDIR=.venv
-JOBS=8
-OUTPUT_DIR=build
-RENDER_COMMAND=$(VENVDIR)/bin/python3 build.py -j $(JOBS) -o $(OUTPUT_DIR)
+# You can set these variables from the command line.
+PYTHON       = python3
+VENVDIR      = .venv
+UV           = uv
+# synchronise with render.yml -> deploy step
+BUILDDIR     = build
+SPHINXBUILD  = PATH=$(VENVDIR)/bin:$$PATH sphinx-build
+BUILDER      = html
+JOBS         = auto
+SOURCES      =
+REQUIREMENTS = requirements.txt
+SPHINXERRORHANDLING = --fail-on-warning --keep-going --warning-file sphinx-warnings.txt
+
+ALLSPHINXOPTS = --builder $(BUILDER) \
+                --jobs $(JOBS) \
+                $(SPHINXOPTS) $(SPHINXERRORHANDLING) \
+                peps $(BUILDDIR) $(SOURCES)
 
 ## html           to render PEPs to "pep-NNNN.html" files
 .PHONY: html
 html: venv
-	$(RENDER_COMMAND)
+	$(SPHINXBUILD) $(ALLSPHINXOPTS)
 
 ## htmlview       to open the index page built by the html target in your browser
 .PHONY: htmlview
 htmlview: html
 	$(PYTHON) -c "import os, webbrowser; webbrowser.open('file://' + os.path.realpath('build/index.html'))"
 
+## htmllive       to rebuild and reload HTML files in your browser
+.PHONY: htmllive
+htmllive: SPHINXBUILD = PATH=$(VENVDIR)/bin:$$PATH sphinx-autobuild
+# Arbitrarily selected ephemeral port between 49152–65535
+# to avoid conflicts with other processes:
+htmllive: SPHINXERRORHANDLING = --re-ignore="/\.idea/|/venv/|/numerical.rst|/pep-0000.rst|/topic/" --open-browser --delay 0 --port 55302
+htmllive: _ensure-sphinx-autobuild html
+
 ## dirhtml        to render PEPs to "index.html" files within "pep-NNNN" directories
 .PHONY: dirhtml
-dirhtml: venv rss
-	$(RENDER_COMMAND) --build-dirs
+dirhtml: BUILDER = dirhtml
+dirhtml: html
+	mv $(BUILDDIR)/404/index.html $(BUILDDIR)/404.html
 
-## fail-warning   to render PEPs to "pep-NNNN.html" files and fail the Sphinx build on any warning
-.PHONY: fail-warning
-fail-warning: venv
-	$(RENDER_COMMAND) --fail-on-warning
-
-## check-links    to check validity of links within PEP sources
-.PHONY: check-links
-check-links: venv
-	$(RENDER_COMMAND) --check-links
-
-## rss            to generate the peps.rss file
-.PHONY: rss
-rss: venv
-	$(VENVDIR)/bin/python3 generate_rss.py -o $(OUTPUT_DIR)
+## linkcheck      to check validity of links within PEP sources
+.PHONY: linkcheck
+linkcheck: BUILDER = linkcheck
+linkcheck: html
 
 ## clean          to remove the venv and build files
 .PHONY: clean
 clean: clean-venv
-	-rm -rf build topic
+	-rm -rf $(BUILDDIR)
 
 ## clean-venv     to remove the venv
 .PHONY: clean-venv
@@ -53,16 +64,37 @@ venv:
 		echo "venv already exists."; \
 		echo "To recreate it, remove it first with \`make clean-venv'."; \
 	else \
-		$(PYTHON) -m venv $(VENVDIR); \
-		$(VENVDIR)/bin/python3 -m pip install -U pip wheel; \
-		$(VENVDIR)/bin/python3 -m pip install -r requirements.txt; \
+		echo "Creating venv in $(VENVDIR)"; \
+		if $(UV) --version >/dev/null 2>&1; then \
+			$(UV) venv --python=$(PYTHON) $(VENVDIR); \
+			VIRTUAL_ENV=$(VENVDIR) $(UV) pip install -r $(REQUIREMENTS); \
+		else \
+			$(PYTHON) -m venv $(VENVDIR); \
+			$(VENVDIR)/bin/python3 -m pip install --upgrade pip; \
+			$(VENVDIR)/bin/python3 -m pip install -r $(REQUIREMENTS); \
+		fi; \
 		echo "The venv has been created in the $(VENVDIR) directory"; \
 	fi
 
+.PHONY: _ensure-package
+_ensure-package: venv
+	if $(UV) --version >/dev/null 2>&1; then \
+		VIRTUAL_ENV=$(VENVDIR) $(UV) pip install $(PACKAGE); \
+	else \
+		$(VENVDIR)/bin/python3 -m pip install $(PACKAGE); \
+	fi
+
+.PHONY: _ensure-pre-commit
+_ensure-pre-commit:
+	$(MAKE) _ensure-package PACKAGE=pre-commit
+
+.PHONY: _ensure-sphinx-autobuild
+_ensure-sphinx-autobuild:
+	$(MAKE) _ensure-package PACKAGE=sphinx-autobuild
+
 ## lint           to lint all the files
 .PHONY: lint
-lint: venv
-	$(VENVDIR)/bin/python3 -m pre_commit --version > /dev/null || $(VENVDIR)/bin/python3 -m pip install pre-commit
+lint: _ensure-pre-commit
 	$(VENVDIR)/bin/python3 -m pre_commit run --all-files
 
 ## test           to test the Sphinx extensions for PEPs
@@ -72,19 +104,8 @@ test: venv
 
 ## spellcheck     to check spelling
 .PHONY: spellcheck
-spellcheck: venv
-	$(VENVDIR)/bin/python3 -m pre_commit --version > /dev/null || $(VENVDIR)/bin/python3 -m pip install pre-commit
+spellcheck: _ensure-pre-commit
 	$(VENVDIR)/bin/python3 -m pre_commit run --all-files --hook-stage manual codespell
-
-## render         (deprecated: use 'make html' alias instead)
-.PHONY: render
-render: html
-	@echo "\033[0;33mWarning:\033[0;31m 'make render' \033[0;33mis deprecated, use\033[0;32m 'make html' \033[0;33malias instead\033[0m"
-
-## pages          (deprecated: use 'make dirhtml' alias instead)
-.PHONY: pages
-pages: dirhtml
-	@echo "\033[0;33mWarning:\033[0;31m 'make pages' \033[0;33mis deprecated, use\033[0;32m 'make dirhtml' \033[0;33malias instead\033[0m"
 
 .PHONY: help
 help : Makefile
